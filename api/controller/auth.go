@@ -1,26 +1,23 @@
 package controller
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/api/request"
 	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/api/response"
+	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/app/services"
 	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/mocks"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
 
 type AuthController struct {
-	refreshTokenSecret string
-	accessTokenSecret  string
+	jwtService services.JwtService
 }
 
-func NewAuthController(refreshTokenSecret string, accessTokenSecret string) Controller {
+func NewAuthController(jwtService services.JwtService) Controller {
 	return &AuthController{
-		refreshTokenSecret,
-		accessTokenSecret,
+		jwtService,
 	}
 }
 
@@ -35,12 +32,12 @@ func (c *AuthController) Login(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Credenciais inválidas")
 	}
 
-	acessToken, err := user.GenerateAccessToken(c.accessTokenSecret)
+	acessToken, err := c.jwtService.GenerateAccessToken(user.ID)
 	if err != nil {
 		log.Printf("Erro ao gerar tokens: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Erro interno ao gerar tokens")
 	}
-	refreshToken, err := user.GenerateRefreshToken(c.refreshTokenSecret)
+	refreshToken, err := c.jwtService.GenerateRefreshToken(user.ID)
 	if err != nil {
 		log.Printf("Erro ao gerar tokens: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Erro interno ao gerar tokens")
@@ -59,19 +56,14 @@ func (c *AuthController) RefreshTokenHandler(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "Requisição inválida")
 	}
 
-	token, err := jwt.ParseWithClaims(req.RefreshToken, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("método de assinatura inesperado: %v", token.Header["alg"])
-		}
-		return []byte(c.refreshTokenSecret), nil
-	})
+	credentials, err := c.jwtService.GetRefreshCredentialsByToken(req.RefreshToken)
 
-	if err != nil || !token.Valid {
+	if err != nil || credentials.Token == nil || !credentials.Token.Valid {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Refresh token inválido ou expirado")
 	}
 
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
-	if !ok {
+	claims := credentials.RegisteredClaims
+	if claims == nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Claims do token inválidas")
 	}
 	userID := claims.Subject
@@ -81,12 +73,12 @@ func (c *AuthController) RefreshTokenHandler(ctx echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Usuário inválido")
 	}
 
-	acessToken, err := user.GenerateAccessToken(c.accessTokenSecret)
+	acessToken, err := c.jwtService.GenerateAccessToken(user.ID)
 	if err != nil {
 		log.Printf("Erro ao gerar novo token: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Erro interno ao gerar tokens")
 	}
-	refreshToken, err := user.GenerateRefreshToken(c.refreshTokenSecret)
+	refreshToken, err := c.jwtService.GenerateRefreshToken(user.ID)
 	if err != nil {
 		log.Printf("Erro ao gerar novo token: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "Erro interno ao gerar tokens")

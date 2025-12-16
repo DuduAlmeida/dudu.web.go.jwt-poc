@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/api/controller"
+	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/app/services"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -23,8 +24,10 @@ func main() {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
-	authController := controller.NewAuthController(refreshTokenSecret, accessTokenSecret)
-	carController := controller.NewCarController(accessTokenSecret)
+	jwtService := services.NewJwtService(accessTokenSecret, refreshTokenSecret)
+
+	authController := controller.NewAuthController(jwtService)
+	carController := controller.NewCarController(jwtService)
 
 	authController.RegisterRoutes(e.Group(apiPrefix))
 	carController.RegisterRoutes(e.Group(apiPrefix))

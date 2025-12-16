@@ -1,17 +1,15 @@
 package middlewares
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/api/common"
-	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/domain/user"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/DuduAlmeida/dudu.web.go.jwt-poc/app/services"
 	"github.com/labstack/echo/v4"
 )
 
-func JWTMiddleware(accessTokenSecret string) echo.MiddlewareFunc {
+func JWTMiddleware(jwtService services.JwtService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(ctx echo.Context) error {
 			authHeader := ctx.Request().Header.Get("Authorization")
@@ -26,19 +24,13 @@ func JWTMiddleware(accessTokenSecret string) echo.MiddlewareFunc {
 			}
 			accessToken := parts[1]
 
-			claims := new(user.UserClaims)
-			token, err := jwt.ParseWithClaims(accessToken, claims, func(token *jwt.Token) (interface{}, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("método de assinatura inesperado: %v", token.Header["alg"])
-				}
-				return []byte(accessTokenSecret), nil
-			})
+			credentials, err := jwtService.GetAccessCredentialsByToken(accessToken)
 
-			if err != nil || !token.Valid {
+			if err != nil || !credentials.Token.Valid {
 				return echo.NewHTTPError(http.StatusUnauthorized, "Token de acesso inválido ou expirado (Manual Validation Failed)")
 			}
 
-			ctx.Set(string(common.UserClaimsKey), claims)
+			ctx.Set(string(common.JwtRegisteredClaimsKey), credentials.RegisteredClaims)
 
 			return next(ctx)
 		}

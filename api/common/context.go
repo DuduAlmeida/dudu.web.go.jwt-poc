@@ -3,7 +3,7 @@ package common
 import "github.com/labstack/echo/v4"
 
 const (
-	UserClaimsKey = "userClaims"
+	JwtRegisteredClaimsKey = "jwtRegisteredClaims"
 )
 
 func GetEchoContextValue[T any](ctx echo.Context, key string) *T {
